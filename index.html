@@ -99,7 +99,7 @@ const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(status))}catch(e){}}
 const stOf=j=>status[j.id]||'未確認';
 
 const wardOf=p=>/南区/.test(p||'')?'南区':/中区/.test(p||'')?'中区':'';
-function areaOf(j){const p=(j.place||'')+' '+(j.address||'');const w=wardOf(p);if(!w)return'';for(const [n,ks] of AREAS[w])if(ks.some(k=>p.includes(k)))return n;return w+'（町名不明）'}
+function areaOf(j){const p=(j.place||'')+' '+(j.town||'');const w=wardOf(p);if(!w)return'';for(const [n,ks] of AREAS[w])if(ks.some(k=>p.includes(k)))return n;return w+'（町名確認中）'}
 const daysLeft=l=>l?Math.ceil((new Date(l+'T00:00:00')-new Date(ymd(new Date())+'T00:00:00'))/864e5):null;
 const weekend=h=>/土日|土・日|土曜.*日曜/.test(h||'');
 const isNew=j=>j.first_seen&&j.first_seen>=latest;

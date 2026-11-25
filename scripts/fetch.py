@@ -20,15 +20,16 @@ SEARCH = BASE + "/kensaku/GECA110010.do"
 INIT = SEARCH + "?action=initDisp&screenId=GECA110010"
 UA = "Mozilla/5.0 (personal job-search notebook; 1 run/day; github.com/clubman621-git/kyujin-techo)"
 WAIT = 3.0
-MAX_PAGES = {"daily": 15, "full": 120}
+MAX_PAGES = {"daily": 15, "full": 170}
 DATA = pathlib.Path("data/jobs.json")
 JST = dt.timezone(dt.timedelta(hours=9))
 TARGET = ("広島市中区", "広島市南区")
 
 # 検索条件（フォーム調査の結果に合わせて設定）
 PREF = "34"  # 広島県
-CITY_FIELDS: list[tuple[str, str]] = []  # 市区町村の指定（調査後に設定）
-NEW_FIELDS: list[tuple[str, str]] = []   # 新着（直近3日）の指定（調査後に設定）
+CITY_FIELDS = [("todohukenHidden", "34101,34103")]  # 広島市中区・南区（市区町村コード）
+NEW_FIELDS = [("jyoukenBox", "20260101001")]        # 新着求人（直近3日）
+DETAIL_PER_RUN = 80  # 町名を調べるために1回で開く詳細ページの上限
 
 s = requests.Session()
 s.headers.update({"User-Agent": UA, "Accept-Language": "ja"})
@@ -94,7 +95,9 @@ def cards(body):
             rows[text(m[1]).split("\n")[0].strip()] = text(m[2])
         head = c[:c.find('<tr class="kyujin_body">')] if '<tr class="kyujin_body">' in c else c[:3000]
         dates = dict(re.findall(r"(受付年月日|紹介期限日)</div>\s*<div>：?([^<]+)<", head))
-        labels = [text(x) for x in re.findall(r'<span class="bg_label[^"]*">\s*<div>([^<]+)</div>', head)]
+        labels = list(dict.fromkeys(text(x) for x in re.findall(r'<span class="bg_label[^"]*">\s*<div>([^<]+)</div>', head)))
+        labels = [x for x in labels if x != "新着"]
+        detail = re.search(r'href="([^"]*action=dispDetailBtn[^"]*)"', c)
         salary = rows.get("賃金", "")
         sal = re.search(r"([\d,]+)円\s*[〜～~]\s*([\d,]+)円", salary) or re.search(r"([\d,]+)円", salary)
         mn = yen(sal[1]) if sal else None
@@ -114,8 +117,21 @@ def cards(body):
             "desc": rows.get("仕事の内容", ""),
             "received": to_date(dates.get("受付年月日")),
             "deadline": to_date(dates.get("紹介期限日")),
+            "_detail": SEARCH + "?" + htmlmod.unescape(detail[1]).split("?", 1)[1] if detail else None,
         })
     return out
+
+
+def town_of(detail_url):
+    """詳細ページの就業場所から町名だけを取り出す（番地・連絡先は保存しない）。"""
+    body = req(detail_url)
+    for m in re.finditer(r'<th[^>]*>(.*?)</th>\s*<td[^>]*>(.*?)</td>', body, re.S):
+        if "就業場所" in text(m[1]):
+            addr = text(m[2]).replace("\n", " ")
+            t = re.search(r"広島市(?:中|南)区\s*([^\d０-９\s\-－（(、,]+?)(?:[\d０-９一二三四五六七八九十]+丁目|[\d０-９]|\s|$)", addr)
+            if t:
+                return t[1]
+    return ""
 
 
 def count(body):
@@ -126,7 +142,7 @@ def count(body):
 def search(mode):
     body = req(INIT)
     base = [(k, v) for k, v in inputs(body, hidden_only=True) if not k.startswith("fwList") and k not in ("todohukenHidden", "action", "screenId")]
-    fields = base + [("kjKbnRadioBtn", "1"), ("todohukenHidden", PREF)] + CITY_FIELDS
+    fields = base + [("kjKbnRadioBtn", "1")] + CITY_FIELDS
     if mode == "daily":
         fields += NEW_FIELDS
     fields += [("searchBtn", "検索する"), ("action", "searchBtn"), ("screenId", "GECA110010")]
@@ -147,14 +163,14 @@ def search(mode):
         f += [(f"fwListNaviBtn{page}", str(page)), ("action", f"fwListNaviBtn{page}")]
         body = req(SEARCH, f)
     print(f"{page} ページ読み込み、{len(found)} 件取得")
-    return list(found.values()), total
+    return list(found.values()), total, body
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["daily", "full"], default="daily")
     a = ap.parse_args()
-    got, total = search(a.mode)
+    got, total, _ = search(a.mode)
     got = [j for j in got if any(t in j["place"] for t in TARGET)]
     print(f"中区・南区の求人 {len(got)} 件")
 
@@ -173,8 +189,24 @@ def main():
         prev = old.get(j["id"])
         j["first_seen"] = prev["first_seen"] if prev else today
         j["last_seen"] = today
+        if prev and prev.get("town") is not None:
+            j["town"] = prev["town"]
         fresh += prev is None
         old[j["id"]] = j
+    # 町名がまだ分からない求人の詳細ページを、新しいものから上限件数まで開く
+    opened = 0
+    for j in sorted(got, key=lambda j: j["first_seen"], reverse=True):
+        if opened >= DETAIL_PER_RUN or j.get("town") is not None or not j.get("_detail"):
+            continue
+        try:
+            j["town"] = town_of(j["_detail"])
+        except (requests.RequestException, SystemExit) as e:
+            print("詳細ページを読めませんでした:", j["id"], e)
+            break
+        opened += 1
+    print(f"詳細ページ {opened} 件で町名を確認")
+    for j in old.values():
+        j.pop("_detail", None)
     # 紹介期限を過ぎたもの、full で見つからなかったものは外す
     keep = []
     for j in old.values():
