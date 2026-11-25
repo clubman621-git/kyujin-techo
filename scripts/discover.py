@@ -1,38 +1,58 @@
-"""検索フォームの構造を調べるための一回限りのスクリプト。
-フォームのHTMLと、そこから読み込まれるJSを out/ に保存する。"""
+"""検索フォームの調査（一回限り）。結果は out/ に保存する。"""
 import pathlib
 import re
+import sys
 import time
 
-import requests
-
-BASE = "https://www.hellowork.mhlw.go.jp"
-INIT = BASE + "/kensaku/GECA110010.do?action=initDisp&screenId=GECA110010"
-UA = "Mozilla/5.0 (personal job-search notebook; 1 run/day)"
+sys.path.insert(0, "scripts")
+import fetch  # noqa: E402
 
 out = pathlib.Path("out")
 out.mkdir(exist_ok=True)
-s = requests.Session()
-s.headers["User-Agent"] = UA
-r = s.get(INIT, timeout=60)
-print("form:", r.status_code, len(r.text))
-(out / "form.html").write_text(r.text, encoding="utf-8")
+log = []
 
-for src in sorted(set(re.findall(r'<script[^>]+src="([^"]+)"', r.text)))[:15]:
-    if src.startswith("http") and BASE not in src:
-        continue
-    url = requests.compat.urljoin(r.url, src)
-    time.sleep(2)
+
+def p(*a):
+    line = " ".join(str(x) for x in a)
+    print(line)
+    log.append(line)
+
+
+body = fetch.req(fetch.INIT)
+modal = dict(screenId="GECZTDFMDL", action="initDisp", codeAssistType="3", codeAssistItemCode="todohukenHidden",
+             codeAssistItemName="todohukenNameLbl", onModal="true", codeAssistModalTitle="都道府県から選択",
+             codeAssistText="", codeAssistLinkLabel="", codeAssistLinkURL="", codeAssistSelectableOne="false",
+             codeAssistSelectableTwo="true", codeAssistSelectableThree="true", codeAssistSelectableFour="true",
+             codeAssistSelectLimitOne="3", codeAssistSelectLimitTwo="3", codeAssistSelectLimitThree="5",
+             codeAssistSelectLimitFour="5", codeAssistLimitTotalTwo="false", codeAssistLimitTotalThree="false",
+             codeAssistLimitTotalFour="true", codeAssistMapKey="todoufukenMap", codeAssistCode="ID_todohukenHidden",
+             codeAssistCodeName="ID_todohukenNameLbl", codeAssistFunc="TODOUFUKEN_FUNC", codeAssistDelimitTwo="false",
+             codeAssistDelimitThree="true", codeAssistDelimitFour="false", selectedCodes="")
+m = fetch.req(fetch.BASE + "/kensaku/ECZTDFMDL.do", modal)
+(out / "modal.html").write_text(m, encoding="utf-8")
+p("modal", len(m))
+for hit in re.findall(r'<input[^>]*value="(34[^"]*)"[^>]*>\s*(?:<[^>]+>\s*)*([^<]{0,20})', m)[:60]:
+    p("  ", hit)
+
+
+def trial(label, extra):
+    b = fetch.req(fetch.INIT)
+    base = [(k, v) for k, v in fetch.inputs(b, hidden_only=True)
+            if not k.startswith("fwList") and k not in ("todohukenHidden", "action", "screenId")]
+    f = base + [("kjKbnRadioBtn", "1")] + extra + [("searchBtn", "検索する"), ("action", "searchBtn"), ("screenId", "GECA110010")]
     try:
-        js = s.get(url, timeout=60)
-        name = re.sub(r"[^A-Za-z0-9_.-]", "_", src.split("?")[0].split("/")[-1])
-        (out / f"js_{name}").write_text(js.text, encoding="utf-8")
-        print("js:", src, js.status_code, len(js.text))
-    except Exception as e:  # noqa: BLE001
-        print("js failed:", src, e)
+        r = fetch.req(fetch.SEARCH, f)
+    except SystemExit as e:
+        p(label, "ERROR", e)
+        return
+    cs = fetch.cards(r)
+    places = sorted({re.sub(r"\s.*", "", c["place"])[:12] for c in cs})
+    p(label, "count=", fetch.count(r), "cards=", len(cs), "入力エラー" in r, places[:8])
+    (out / f"trial_{label}.html").write_text(r, encoding="utf-8")
 
-names = re.findall(r'<(?:input|select)[^>]*name="([^"]+)"', r.text)
-print("fields:", len(names))
-for n in sorted(set(names)):
-    if re.search(r"(?i)todo|shi|siku|kinmu|syugyo|shugyo|basho|area|jyouken|kjKbn|Hidden", n):
-        print("  ", n)
+
+trial("pref34", [("todohukenHidden", "34")])
+trial("city_comma", [("todohukenHidden", "34101,34103")])
+trial("city_one", [("todohukenHidden", "34101")])
+trial("pref34_new", [("todohukenHidden", "34"), ("jyoukenBox", "20260101001")])
+(out / "log.txt").write_text("\n".join(log), encoding="utf-8")
