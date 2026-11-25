@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#d9452b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="求人手帳">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<title>中区・南区 求人手帳</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#141413);--ink:light-dark(#1b1a18,#efece6);--sub:light-dark(#6b6760,#a29d94);--line:light-dark(#e4e0d8,#2e2c29);--card:light-dark(#faf8f4,#1d1c1a);--ac:#d9452b;--ac2:light-dark(#fbe6e1,#3a201a);--ok:light-dark(#2f6b4f,#7fc4a0)}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 "Zen Kaku Gothic New","Hiragino Sans",sans-serif;overflow-x:clip;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.band{padding:clamp(18px,3vw,36px) max(4vw,16px)}
+.wrap{max-width:1000px;margin:0 auto}
+h1{font-size:clamp(26px,5vw,38px);line-height:1.1;margin:0;font-weight:900}
+.sub{margin:6px 0 0;color:var(--sub);font-size:14px}
+.today{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;margin-top:12px}
+.today b{font-size:clamp(34px,7vw,50px);line-height:1;color:var(--ac);font-weight:900}
+.route{margin:18px 0 0;overflow-x:auto;padding-bottom:6px}
+.route svg{display:block;height:118px}
+.stop{cursor:pointer}.stop text{font:700 13px "Zen Kaku Gothic New",sans-serif;fill:var(--ink)}.stop .n{font-size:15px;fill:var(--ac)}.stop.on circle{fill:var(--ac)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+select,input,textarea,button{font:inherit;font-size:16px;color:var(--ink)}
+select,input[type=number],input[type=search]{min-height:44px;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:0 12px}
+textarea{width:100%;min-height:90px;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:12px}
+button{min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);padding:0 14px;cursor:pointer}
+:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
+.chk{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 10px;border:1px solid var(--line);border-radius:10px}
+.chk input{width:20px;height:20px;accent-color:var(--ac)}
+.cards{display:grid;gap:12px}
+.job{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;position:relative}
+.job.new::after{content:"新着";position:absolute;top:12px;right:14px;font-size:12px;font-weight:700;color:#fff;background:var(--ac);border-radius:99px;padding:1px 9px}
+.job h3{margin:0 56px 2px 0;font-size:18px;line-height:1.35}
+.co{color:var(--sub);font-size:14px}
+.meta{display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 0;font-size:14px}
+.tag{display:inline-block;background:var(--ac2);border-radius:6px;padding:0 8px;font-size:13px;font-weight:700}
+.warn{color:var(--ac);font-weight:700}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.job details{font-size:14px;margin:4px 0 8px}.job summary{cursor:pointer;color:var(--sub);min-height:32px}
+.desc{white-space:pre-wrap}
+.empty{padding:28px;text-align:center;color:var(--sub);border:1px dashed var(--line);border-radius:14px}
+.foot{color:var(--sub);font-size:13px}
+.foot a{color:var(--ac)}
+.msg{min-height:20px;font-size:14px;color:var(--ok)}
+.more{display:block;margin:14px auto 0}
+@media(prefers-reduced-motion:no-preference){.job{animation:in .25s ease-out}@keyframes in{from{opacity:0;transform:translateY(4px)}}}
+</style>
+</head>
+<body>
+<header class="band"><div class="wrap">
+  <h1>中区・南区 求人手帳</h1>
+  <p class="sub" id="upd">データを読み込み中…</p>
+  <div class="today"><b id="newN">0</b><span>件が新着 ／ 掲載中 <strong id="allN">0</strong>件 ／ 気になる <strong id="favN">0</strong>件 ／ 期限7日以内 <strong id="soonN" class="warn">0</strong>件</span></div>
+  <div class="route" id="route"></div>
+</div></header>
+
+<main class="band" style="padding-top:0"><div class="wrap">
+  <div class="filters">
+    <select id="fWard" aria-label="区"><option value="">中区・南区</option><option>中区</option><option>南区</option></select>
+    <select id="fSt" aria-label="状態"><option value="act">見送り以外</option><option value="">すべて</option><option value="new">新着だけ</option><option value="fav">気になる以上</option></select>
+    <select id="fKind" aria-label="雇用形態"><option value="">正社員・パートすべて</option><option value="正社員">正社員</option><option value="パート">パート</option></select>
+    <input id="fPay" type="number" inputmode="numeric" step="10000" placeholder="月給の下限(円)" aria-label="月給の下限" style="width:170px">
+    <label class="chk"><input id="fWe" type="checkbox">土日休み</label>
+    <input id="fQ" type="search" placeholder="職種・会社名・仕事内容で検索" aria-label="検索" style="flex:1 1 200px">
+    <select id="fSort" aria-label="並び順"><option value="new">新しい順</option><option value="pay">月給が高い順</option><option value="lim">期限が近い順</option></select>
+  </div>
+  <div class="cards" id="cards"></div>
+  <button class="more" id="more" hidden>さらに表示</button>
+
+  <details class="foot" style="margin-top:28px"><summary>状態のバックアップ・使い方</summary>
+    <p>求人データは毎朝6時ごろ、ハローワークインターネットサービスから自動で更新されます。応募するときは「番号をコピー」して<a href="https://www.hellowork.mhlw.go.jp/kensaku/GECA110010.do?action=initDisp&screenId=GECA110010">ハローワークの求人検索</a>の「求人番号」欄に貼り付け、最新の求人票を確認してください。</p>
+    <p>「気になる」「応募した」などの状態はこの端末にだけ保存されます。機種変更などに備えて、ときどきコピーして保管してください。</p>
+    <div class="row"><button id="exp">状態をコピー</button><button id="imp">貼り付けた内容で復元</button></div>
+    <textarea id="bk" placeholder="バックアップ用の文字列" style="margin-top:8px"></textarea>
+    <div class="msg" id="msg" role="status"></div>
+  </details>
+</div></main>
+
+<script>
+{
+const AREAS={
+ '中区':[['紙屋町・基町',['紙屋町','基町','大手町','中町','袋町','本通','立町','鉄砲町']],['八丁堀・流川',['八丁堀','幟町','銀山町','胡町','堀川町','流川町','薬研堀','新天地','弥生町','田中町','橋本町','上幟町','東平塚','西平塚','鶴見町','富士見町','小町','竹屋町','宝町','昭和町','千田町','国泰寺町','三川町','研屋町']],['十日市・舟入',['十日市町','土橋町','榎町','堺町','小網町','寺町','広瀬','舟入','河原町','住吉町','加古町','中島町','平野町','吉島','光南','羽衣町','西川口','白島']],['江波',['江波']]],
+ '南区':[['広島駅周辺',['松原町','大須賀町','的場町','京橋町','猿猴橋町','荒神町','金屋町','稲荷町','松川町','比治山町','蟹屋']],['段原・皆実',['段原','比治山本町','東雲','皆実町','旭','出汐','霞','翠','本浦']],['宇品・出島',['宇品','出島','海岸通','楠那','似島']],['仁保・大州',['仁保','向洋','青崎','大州','山城','日宇那','黄金山','丹那','堀越','月見町']]]
+};
+const ST=['未確認','気になる','応募した','面接','見送り'];
+const KEY='kyujin-techo-status-v1';
+const PAGE=40;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=id=>document.getElementById(id);
+const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+let jobs=[],latest='',status={},areaSel='',shown=PAGE;
+try{status=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){status={}}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(status))}catch(e){}};
+const stOf=j=>status[j.id]||'未確認';
+
+const wardOf=p=>/南区/.test(p||'')?'南区':/中区/.test(p||'')?'中区':'';
+function areaOf(j){const p=(j.place||'')+' '+(j.address||'');const w=wardOf(p);if(!w)return'';for(const [n,ks] of AREAS[w])if(ks.some(k=>p.includes(k)))return n;return w+'（町名不明）'}
+const daysLeft=l=>l?Math.ceil((new Date(l+'T00:00:00')-new Date(ymd(new Date())+'T00:00:00'))/864e5):null;
+const weekend=h=>/土日|土・日|土曜.*日曜/.test(h||'');
+const isNew=j=>j.first_seen&&j.first_seen>=latest;
+
+function drawRoute(){
+ const stops=[];for(const w of ['中区','南区'])for(const [n] of AREAS[w])stops.push(n);
+ const gap=112,W=stops.length*gap+40;
+ const cnt=n=>jobs.filter(j=>areaOf(j)===n&&stOf(j)!=='見送り').length;
+ let s=`<svg width="${W}" viewBox="0 0 ${W} 118" role="img" aria-label="エリア別の件数"><line x1="20" y1="58" x2="${W-20}" y2="58" stroke="var(--ac)" stroke-width="6" stroke-linecap="round"/><text x="56" y="16" font-size="12" fill="var(--sub)">中区</text><text x="${20+gap*4+36}" y="16" font-size="12" fill="var(--sub)">南区</text><line x1="${gap*4}" y1="44" x2="${gap*4}" y2="72" stroke="var(--sub)" stroke-dasharray="3 3"/>`;
+ stops.forEach((n,i)=>{const x=20+gap*i+36;s+=`<g class="stop${areaSel===n?' on':''}" data-a="${esc(n)}" tabindex="0" role="button" aria-pressed="${areaSel===n}"><rect x="${x-50}" y="24" width="100" height="92" fill="transparent"/><text class="n" x="${x}" y="40" text-anchor="middle">${cnt(n)}件</text><circle cx="${x}" cy="58" r="10" fill="var(--bg)" stroke="var(--ac)" stroke-width="4"/><text x="${x}" y="92" text-anchor="middle">${esc(n)}</text></g>`});
+ $('route').innerHTML=s+'</svg>';
+ $('route').querySelectorAll('.stop').forEach(g=>{const f=()=>{areaSel=areaSel===g.dataset.a?'':g.dataset.a;shown=PAGE;render()};g.onclick=f;g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();f()}}});
+}
+
+function card(j){
+ const d=daysLeft(j.deadline),st=stOf(j);
+ return `<article class="job${isNew(j)?' new':''}">
+  <h3>${esc(j.title||'職種不明')}</h3><div class="co">${esc(j.employer)}</div>
+  <div class="meta"><span class="tag">${esc(areaOf(j)||'区外')}</span>${(j.labels||[]).map(l=>`<span>${esc(l)}</span>`).join('')}<span>${esc(j.salary_text||'賃金記載なし')}</span></div>
+  <div class="meta"><span>休日：${esc(j.holidays||'—')}</span>${d!==null?`<span class="${d<=7?'warn':''}">${d<0?'紹介期限切れ':'期限まであと'+d+'日'}</span>`:''}<span>求人番号 ${esc(j.id)}</span></div>
+  ${j.desc||j.hours||j.place?`<details><summary>仕事内容・就業時間</summary><div class="desc">${esc(j.desc||'')}</div><p>就業時間：${esc(j.hours||'—')}<br>就業場所：${esc(j.place||'—')}</p></details>`:''}
+  <div class="row"><select data-id="${esc(j.id)}" class="st" aria-label="状態">${ST.map(s=>`<option${s===st?' selected':''}>${s}</option>`).join('')}</select><button data-id="${esc(j.id)}" class="cp">番号をコピー</button></div>
+ </article>`;
+}
+
+function render(){
+ const w=$('fWard').value,f=$('fSt').value,k=$('fKind').value,p=+$('fPay').value||0,we=$('fWe').checked,q=$('fQ').value.trim();
+ let list=jobs.filter(j=>{const st=stOf(j);
+  if(w&&wardOf(j.place)!==w)return false;
+  if(areaSel&&areaOf(j)!==areaSel)return false;
+  if(f==='act'&&st==='見送り')return false;
+  if(f==='new'&&!isNew(j))return false;
+  if(f==='fav'&&!['気になる','応募した','面接'].includes(st))return false;
+  if(k&&!(j.labels||[]).some(l=>l.includes(k)))return false;
+  if(p&&!((j.salary_min||0)>=p))return false;
+  if(we&&!weekend(j.holidays))return false;
+  if(q&&!((j.title||'')+(j.employer||'')+(j.desc||'')).includes(q))return false;
+  return true});
+ const so=$('fSort').value;
+ list.sort(so==='pay'?(a,b)=>(b.salary_min||0)-(a.salary_min||0):so==='lim'?(a,b)=>(a.deadline||'9')<(b.deadline||'9')?-1:1:(a,b)=>((b.first_seen||'')+(b.received||'')).localeCompare((a.first_seen||'')+(a.received||'')));
+ $('newN').textContent=jobs.filter(isNew).length;
+ $('allN').textContent=jobs.length;
+ $('favN').textContent=jobs.filter(j=>stOf(j)==='気になる').length;
+ $('soonN').textContent=jobs.filter(j=>{const d=daysLeft(j.deadline);return d!==null&&d>=0&&d<=7&&stOf(j)!=='見送り'}).length;
+ $('cards').innerHTML=list.length?list.slice(0,shown).map(card).join(''):'<div class="empty">条件に合う求人はありません。絞り込みをゆるめてください。</div>';
+ $('more').hidden=list.length<=shown;
+ $('more').textContent=`さらに表示（残り${Math.max(list.length-shown,0)}件）`;
+ drawRoute();
+}
+
+$('cards').addEventListener('change',e=>{const s=e.target.closest('.st');if(!s)return;if(s.value==='未確認')delete status[s.dataset.id];else status[s.dataset.id]=s.value;save();render()});
+$('cards').addEventListener('click',async e=>{const b=e.target.closest('.cp');if(!b)return;try{await navigator.clipboard.writeText(b.dataset.id);b.textContent='コピーしました'}catch(err){b.textContent=b.dataset.id}});
+$('more').onclick=()=>{shown+=PAGE;render()};
+['fWard','fSt','fKind','fPay','fWe','fQ','fSort'].forEach(id=>$(id).addEventListener('input',()=>{shown=PAGE;render()}));
+$('exp').onclick=async()=>{const s=JSON.stringify(status);$('bk').value=s;try{await navigator.clipboard.writeText(s);$('msg').textContent='コピーしました。メモなどに保管してください。'}catch(e){$('msg').textContent='上の欄の文字列をコピーして保管してください。'}};
+$('imp').onclick=()=>{try{const d=JSON.parse($('bk').value);if(!d||typeof d!=='object'||Array.isArray(d))throw 0;status=d;save();render();$('msg').textContent='復元しました。'}catch(e){$('msg').textContent='復元できませんでした。'}};
+
+fetch('data/jobs.json',{cache:'no-cache'}).then(r=>r.json()).then(d=>{
+ jobs=Array.isArray(d.jobs)?d.jobs:[];latest=d.latest_new||'';
+ const u=d.updated?new Date(d.updated):null;
+ $('upd').textContent=u?`最終更新 ${u.getMonth()+1}月${u.getDate()}日 ${String(u.getHours()).padStart(2,'0')}:${String(u.getMinutes()).padStart(2,'0')}（ハローワークインターネットサービスより自動取得）`:'まだデータがありません';
+ render();
+}).catch(()=>{$('upd').textContent='データを読み込めませんでした。通信状態を確認してください。';render()});
+
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>

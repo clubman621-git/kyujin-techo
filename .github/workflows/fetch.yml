@@ -1,0 +1,47 @@
+name: 求人を取得
+
+on:
+  schedule:
+    - cron: "17 21 * * *"   # 毎朝 6:17（日本時間）
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "daily（新着のみ） / full（全件） / discover（フォーム調査）"
+        default: daily
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests==2.32.3
+      - name: discover
+        if: ${{ github.event.inputs.mode == 'discover' }}
+        run: python scripts/discover.py
+      - uses: actions/upload-artifact@v4
+        if: ${{ github.event.inputs.mode == 'discover' }}
+        with:
+          name: discover
+          path: out/
+      - name: fetch
+        if: ${{ github.event.inputs.mode != 'discover' }}
+        run: python scripts/fetch.py --mode "${{ github.event.inputs.mode || 'daily' }}"
+      - name: commit
+        if: ${{ github.event.inputs.mode != 'discover' }}
+        run: |
+          git config user.name "kyujin-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git diff --cached --quiet || git commit -m "求人データ更新 $(TZ=Asia/Tokyo date +%F)"
+          git push
