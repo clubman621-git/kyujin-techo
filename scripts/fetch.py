@@ -149,7 +149,7 @@ def search(mode):
     body = req(SEARCH, fields)
     total = count(body)
     print(f"検索結果 {total} 件")
-    found, page = {}, 1
+    found, page, complete = {}, 1, True
     while True:
         new = 0
         for c in cards(body):
@@ -158,19 +158,24 @@ def search(mode):
                 new += 1
         if new == 0 or (total and len(found) >= total) or page >= MAX_PAGES[mode]:
             break
-        page += 1
         f = [(k, v) for k, v in inputs(body) if k != "searchBtn"]
-        f += [(f"fwListNaviBtn{page}", str(page)), ("action", f"fwListNaviBtn{page}")]
-        body = req(SEARCH, f)
+        f += [("fwListNaviBtnNext", "次へ＞"), ("action", "fwListNaviBtnNext")]
+        try:
+            body = req(SEARCH, f)
+        except (SystemExit, requests.RequestException) as e:
+            print(f"{page + 1} ページ目で中断: {e}")
+            complete = False
+            break
+        page += 1
     print(f"{page} ページ読み込み、{len(found)} 件取得")
-    return list(found.values()), total, body
+    return list(found.values()), total, complete
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["daily", "full"], default="daily")
     a = ap.parse_args()
-    got, total, _ = search(a.mode)
+    got, total, complete = search(a.mode)
     got = [j for j in got if any(t in j["place"] for t in TARGET)]
     print(f"中区・南区の求人 {len(got)} 件")
 
@@ -212,7 +217,7 @@ def main():
     for j in old.values():
         if j.get("deadline") and j["deadline"] < today:
             continue
-        if a.mode == "full" and j.get("last_seen") != today:
+        if a.mode == "full" and complete and j.get("last_seen") != today:
             continue
         keep.append(j)
     keep.sort(key=lambda j: (j.get("first_seen", ""), j.get("received") or ""), reverse=True)
