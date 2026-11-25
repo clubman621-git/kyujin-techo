@@ -29,11 +29,16 @@ jobs:
       - name: discover
         if: ${{ github.event.inputs.mode == 'discover' }}
         run: python scripts/discover.py
-      - uses: actions/upload-artifact@v4
+      - name: save discover output
         if: ${{ github.event.inputs.mode == 'discover' }}
-        with:
-          name: discover
-          path: out/
+        run: |
+          git config user.name "kyujin-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan discover
+          git rm -rq --cached .
+          git add -f out/
+          git commit -qm "discover output"
+          git push -f origin discover
       - name: fetch
         if: ${{ github.event.inputs.mode != 'discover' }}
         run: python scripts/fetch.py --mode "${{ github.event.inputs.mode || 'daily' }}"
