@@ -126,7 +126,7 @@ def town_of(detail_url):
     """詳細ページの就業場所から町名だけを取り出す（番地・連絡先は保存しない）。"""
     body = req(detail_url)
     for m in re.finditer(r'<th[^>]*>(.*?)</th>\s*<td[^>]*>(.*?)</td>', body, re.S):
-        if "就業場所" in text(m[1]):
+        if text(m[1]).strip().startswith("就業場所") and "特記" not in text(m[1]) and "受動喫煙" not in text(m[1]):
             addr = text(m[2]).replace("\n", " ")
             t = re.search(r"広島市(?:中|南)区\s*([^\d０-９\s\-－（(、,]+?)(?:[\d０-９一二三四五六七八九十]+丁目|[\d０-９]|\s|$)", addr)
             if t:
