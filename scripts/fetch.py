@@ -29,7 +29,7 @@ TARGET = ("広島市中区", "広島市南区")
 PREF = "34"  # 広島県
 CITY_FIELDS = [("todohukenHidden", "34101,34103")]  # 広島市中区・南区（市区町村コード）
 NEW_FIELDS = [("jyoukenBox", "20260101001")]        # 新着求人（直近3日）
-DETAIL_PER_RUN = 80  # 町名を調べるために1回で開く詳細ページの上限
+DETAIL_PER_RUN = 150  # 町名を調べるために1回で開く詳細ページの上限
 
 s = requests.Session()
 s.headers.update({"User-Agent": UA, "Accept-Language": "ja"})
@@ -189,14 +189,20 @@ def main():
             latest = prev_data.get("latest_new")
         except (ValueError, KeyError):
             old = {}
+    recent = (now - dt.timedelta(days=3)).strftime("%Y-%m-%d")
     fresh = 0
     for j in got:
         prev = old.get(j["id"])
-        j["first_seen"] = prev["first_seen"] if prev else today
+        if prev:
+            j["first_seen"] = prev["first_seen"]
+        elif a.mode == "full" and j.get("received") and j["received"] < recent:
+            j["first_seen"] = j["received"]  # 全件取得で見つかった古い求人は新着にしない
+        else:
+            j["first_seen"] = today
         j["last_seen"] = today
         if prev and prev.get("town") is not None:
             j["town"] = prev["town"]
-        fresh += prev is None
+        fresh += j["first_seen"] == today
         old[j["id"]] = j
     # 町名がまだ分からない求人の詳細ページを、新しいものから上限件数まで開く
     opened = 0
@@ -223,7 +229,7 @@ def main():
     keep.sort(key=lambda j: (j.get("first_seen", ""), j.get("received") or ""), reverse=True)
     DATA.parent.mkdir(exist_ok=True)
     DATA.write_text(json.dumps({"updated": now.isoformat(timespec="minutes"), "latest_new": today if fresh else latest,
-                                "jobs": keep}, ensure_ascii=False, indent=0), encoding="utf-8")
+                                "jobs": keep}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"新着 {fresh} 件、保存 {len(keep)} 件")
 
 

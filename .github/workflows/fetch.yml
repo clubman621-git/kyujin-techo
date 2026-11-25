@@ -41,7 +41,13 @@ jobs:
           git push -f origin discover
       - name: fetch
         if: ${{ github.event.inputs.mode != 'discover' }}
-        run: python scripts/fetch.py --mode "${{ github.event.inputs.mode || 'daily' }}"
+        run: |
+          MODE="${{ github.event.inputs.mode }}"
+          if [ -z "$MODE" ]; then
+            # 日曜の朝だけ全件を読み直して、締め切られた求人を外す
+            if [ "$(TZ=Asia/Tokyo date +%u)" = 7 ]; then MODE=full; else MODE=daily; fi
+          fi
+          python scripts/fetch.py --mode "$MODE"
       - name: commit
         if: ${{ github.event.inputs.mode != 'discover' }}
         run: |
@@ -49,4 +55,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/
           git diff --cached --quiet || git commit -m "求人データ更新 $(TZ=Asia/Tokyo date +%F)"
+          git pull --rebase -q
           git push
